@@ -16,10 +16,9 @@ el parametro k, dt, dx, Nx es la cantidad de nodos internos
 import numpy as np
 import LU_deco as LU
 
-def crank_nicolson1d(f,b1,b2,k,dt,t,dx,Nx):
+def crank_nicolson1d(f,k,dt,t,dx,Nx):
     
-    lam = k*dt / (dx**2) 
-    
+    lam = k*dt / (dx**2)
     tiempo = 0 
     while(tiempo < t):
     
@@ -49,4 +48,7 @@ def crank_nicolson1d(f,b1,b2,k,dt,t,dx,Nx):
         tiempo = tiempo + dt
     
     return f
+
+def crank_nicolson2d():
+    return 1
     
