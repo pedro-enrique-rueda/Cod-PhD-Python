@@ -13,16 +13,17 @@ from matplotlib import cm # import colormap tools
 
 def campo1(x,y,w0):
     # ecuacion gaussiana comun y corriente, se usó como prueba. 
-    return np.exp(- ((x**2) + (y**2)) / (w0**2))
+    return np.exp(-(np.power(r/w0,2)))
 
+                  
 # for pulse splitting
 def field158(A,r,w0,f,k0,Chirp,t,tp):
     
-    return A*np.exp(-(np.power(r/w0,2)) - 1j*k0*(np.power(r,2))/(2*f) - (1+1j*Chirp)*np.power(t/tp,2))     # initial pulse
+    return A * np.exp(-(np.power(r/w0,2)) - 1j*k0*(np.power(r,2))/(2*f) - (1+1j*Chirp)*np.power(t/tp,2))     # initial pulse
     
 
-def field_in_MPC(E0,r,w0,Chirp,T,tp,k0,Rin):
-    return E0 * np.exp(-(np.power(r/w0,2)) * np.exp((1+1j*Chirp)*(-T**2/tp**2)) * np.exp(-1j*w0*T)) * np.exp(1j *k0*(np.power(r,2))/(2*Rin)) #defition of field in the time domain
+def field_in_MPC(E0,r,w0,Rin,k0,Chirp,T,tp):
+    return E0 * np.exp(-(np.power(r/w0,2))) * np.exp(-1j *k0*np.power(r,2)/(2*Rin)) * np.exp(-(1+1j*Chirp)*(T**2/tp**2)) * np.exp(-1j*w0*T)  #defition of field in the time domain
 
 
 
@@ -204,14 +205,14 @@ def complex_crank_nicolson2d(f,k1,dz,z,dr,k2 = 0, k3 = 0,disperssion = False,k_d
 '''
 
 # w0 = 100e-6                     # tamaño del spot espacial del haz en el foco
-w0 = 5e-3                       # tamaño del haz de entrada, a la salida del telescopio ya colimado
+w0 = 1.553896e-3                       # tamaño del haz de entrada, a la salida del telescopio ya colimado
 lam0 = 800e-9
 eps0 = 8.854e-12                #vacuum permitivity
 c = 299792458 #m/s
-n = 1.328                       # indice de refracción lineal
-kbar = 2*3.1416 * n / lam0 
+n = 1                       # indice de refracción lineal
+kbar = 2*np.pi * n / lam0 
 k1 = 1j /(2* kbar)
-k0 = 2*3.1416 / lam0
+k0 = 2*np.pi / lam0
 Chirp = -0
 FWHM = 50e-15           
 frecuencia_laser = 1000 #Hz
@@ -229,12 +230,13 @@ I0 = 2*Energy/(np.pi*w0**2)/(np.sqrt(np.pi/2)*tp)   #intensity at input mirror
 E0 = np.sqrt(2*I0/(c*eps0))                         #field amplitude at input mirror
 
 
-# eje espacial
+# eje espacial trasversal
 xa = w0*3                # metros
 Nx = 100
 dx = (xa - (-xa)) / Nx
 x = np.linspace(-xa/2, xa/2,Nx,dtype=complex)
-r = np.sqrt(np.power(x,2) + np.power(x,2))
+y = np.linspace(-xa/2, xa/2,Nx,dtype=complex)
+r = np.sqrt(np.power(x,2) + np.power(y,2))
 dr = dx
 
 # eje temporal
@@ -251,11 +253,18 @@ extra_pass = True           #True for adding an extra through the focus (half ro
 f1 = 0.5*300e-3             #300e-3    #focal distance mirror 1 (all distances in m)
 f2 = 0.5*300e-3             #300e-3   #focal distance mirror 2
 z_end = 0.999*2*(f1+f2)     #mirror separation en metros
-Nz = 1500                   #pasos de propagacion Z
+Nz = 100                   #pasos de propagacion Z
 dz = z_end/Nz               #propagation step
 
-print("Haz de entrada")
-print(f"El haz conservará su diametro trasversal hasta \nRayleigh del haz de entrada = {Zr0} metros")
+# Terminos no lineales
+n2 = 1.6e-20                                                   # antes (e-16)indice no lineal de refraccion (cm2 / W) -> m2 / W
+Bk = 8e-64                                                    # antes (e-50)  cm7 / W4 -> m7 / W4 
+photons = 5
+N1 = 1j*(w0*n2) / c
+N2 = Bk / 2
+
+print("\n\n\n######## Datos de mi pulso de entrada ########")
+print(f"\nEl haz conservará su diametro trasversal hasta \nRayleigh del haz de entrada = {Zr0} metros")
 print(f"\nEnergia del pulso = {Energy} Joules")
 print(f"Potencia media del laser = {Pot_laser} W")
 print(f"FWHM = {FWHM} fs")
@@ -265,6 +274,7 @@ print(f"Intensidad del haz de entrada = {I0} W/m2")
 print(f"Amplitud del haz de entrada = {E0}")
 print(f"Ventana temporal = {ta} segundos")
 print(f"Ventana espacial = {xa} metros")
+print(f"Tamaño trasversal del haz de entrada = {w0} [m]")
 print(f"Distancia de propagacion por round trip = {z_end} metros")
 print(f"dz = {dz}")
 print(f"foco1 = {f1} metros \nfoco2 = {f2} metros")
@@ -281,7 +291,6 @@ L = z_end                   # longitud de cavidad, espejo a espejo en metros
 g1 = 1-L/(2*f1)             #following definitions according to Siegman's book
 g2 = 1-L/(2*f2)
 
- 
 if g1 == g2:                # Confocal symmetric case
     wxo = np.sqrt((L*lam0/np.pi)*np.sqrt((1+g1)/(4*(1-g1))))  #cavity waist
     z0 = L/2                                                  #position of waist
@@ -296,22 +305,44 @@ z1 = z0                            #distancia desde el foco al espejo 1.
 win =  wxo*np.sqrt(1+(z1/Zr)**2)    #beam size at 1st mirror
 Rin = z1*(1+(Zr/z1)**2)              #radius of curvature at 1st mirror
 
-print(f"0 <= g1g2 <= 1 : {0 <= g1*g2 <= 1}") # condicion de estabilidad de la cavidad
-print(f"\nRayleight de la cavidad = {Zr} metros")
-print(f"Distancia desde foco al espejo 1 = {z1} m")
-print(f"Beam size at 1st mirror = {win} m")
-print(f"Radio de curvatura en espejo 1 = {Rin}")
-print(f"Tamaño de haz en foco = {wxo}")
+print("\n\n\n######## Confocal MPC Caracteristics ########")
+print("\nLa siguiente información son las caracteristicas de la MPC, setee \nsu haz de entrada TEM00 con diametro de entrada especificado")
+print(f"\nSetee el diametro del haz de entrada en = {win} [m]")
+print(f"\n0 <= g1g2 <= 1 : Estabilidad {0 <= g1*g2 <= 1}") # condicion de estabilidad de la cavidad
+print(f"Rayleight de la cavidad = {Zr} [m]")
+print(f"Distancia desde foco al espejo 1 = {z1} [m]")
+print(f"Radio de curvatura del haz en espejo 1 = {Rin}")
+print(f"Tamaño de haz en foco = {wxo} [m]")
 
-R,T = np.meshgrid(r,t)
 
 
-# hasta este momento, obtendria el campo referente al laser 
+#hasta este momento, obtendria el campo referente al laser 
 #al momento de tocar el primer espejo de la cavidad.
 
-# campo_in = field_in_MPC(E0,R,w0,Chirp,T,tp,k0,Rin)        # campo entrante a la MPC
- 
+disperssion = False
+nonlinear = False
+gaussiano_espacial = True
 
+if disperssion and nonlinear:
+    R,T = np.meshgrid(r,t)
+    campo_in = field_in_MPC(E0,R,w0,Rin,k0,Chirp,T,tp)        # campo entrante a la MPC
+    
+if gaussiano_espacial:
+    X,Y = np.meshgrid(x,y)
+    campo_in = E0*(wxo/w0)*np.exp(-np.power(np.sqrt(np.power(X,2) + np.power(Y,2))/w0,2))*np.exp(-1j*np.arctan(z1/Zr))*np.exp(-1j*(kbar*(np.power(X,2) + np.power(Y,2))/(2*Rin))) # haz gaussiano comun
+
+    
+extent = np.min(x)*1e5, np.max(x)*1e5, np.min(x)*1e5, np.max(x)*1e5
+plt.figure(figsize=(9, 9),dpi=100, frameon=True)
+plt.imshow(np.abs(campo_in), cmap = cm.inferno,extent=extent)#,vmax = 4e7, vmin = -1e7) #  vmin=-1, vmax=1,
+plt.colorbar()
+plt.title("Pulso entrada en x vs x")
+plt.xlabel("Espacio [micrometros]")
+plt.ylabel("Espacio [micrometros]")
+plt.show()
+    
+# Ef = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(campo_in))) #to frequency domain
+ 
 
 '''
                                     Graficas
@@ -319,95 +350,127 @@ R,T = np.meshgrid(r,t)
 
 
 # calculo de intensidad de entrada
-E2I = 0.5*c*eps0 #constant to go from field amplitude to intensity
-It = np.abs(campo_in[:,int(Nx/2)])**2
-Ir = np.abs(campo_in[int(Nt/2),:])**2
-
+# E2I = 0.5*c*eps0 #constant to go from field amplitude to intensity
+# It = E2I*np.abs(campo_in[:,int(Nx/2)])**2
+# Ir = E2I*np.abs(campo_in[int(Nt/2),:])**2
+# Eft = Ef[:,int(Nx/2)]
 
 
 # grafica del perfil de intensidad temporal del pulso
 plt.figure()
 fig, axes = plt.subplots(2,1,gridspec_kw={'height_ratios':[2,2]},constrained_layout=True)
-axes[0].set_title("Perfil de intensidad temporal del pulso")
-axes[0].plot(np.real(t),np.real(It))
+# axes[0].set_title("Perfil de intensidad temporal del pulso")
+# axes[0].set_xlabel("Tiempo")
+# axes[0].set_ylabel("Intensidad")
+# axes[0].plot(t,np.real(It))
 
 # grafica del perfil de intensidad espacial del pulso
 axes[1].set_title("Perfil de intensidad espacial del pulso")
-axes[1].plot(np.real(x),np.real(Ir))
+axes[1].set_xlabel("Espacio")
+axes[1].set_ylabel("Intensidad")
+axes[1].plot(x,np.abs(campo_in[int(Nx/2),:]))
 plt.show()
+
+# grafica del perfil de intensidad espectral del pulso
+
+# plt.figure()
+# plt.plot(np.real(Ef))
+# plt.show()
+
+
 
 
 # grafica de imagen en 2D de perfil de intensidad espacial vs temporal
-extent = np.min(x)*1e5, np.max(x)*1e5, np.min(t)*1e15, np.max(t)*1e15
+# extent = np.min(x)*1e5, np.max(x)*1e5, np.min(t)*1e15, np.max(t)*1e15
 
-plt.figure(figsize=(9, 9),dpi=100, frameon=False)
-plt.imshow(np.real(campo_in), cmap = cm.inferno,extent=extent) #  vmin=-1, vmax=1,
-plt.colorbar()
-plt.title("Pulso entrada en r vs t")
-plt.xlabel("Espacio [micrometros]")
-plt.ylabel("Tiempo [femtosegundos]")
-plt.text(55, 160, f"w0 = {w0}[m] \nlam = {lam0}[m] \nChirp = {Chirp}\ntp = {tp}[fs]")
-plt.show()
-
+# plt.figure(figsize=(9, 9),dpi=100, frameon=False)
+# plt.imshow(np.real(campo_in), cmap = cm.inferno,extent=extent) #  vmin=-1, vmax=1,
+# plt.colorbar()
+# plt.title("Pulso entrada en r vs t")
+# plt.xlabel("Espacio [micrometros]")
+# plt.ylabel("Tiempo [femtosegundos]")
+# plt.text(55, 160, f"w0 = {w0}[m]")#" \nlam = {lam0}[m] \nChirp = {Chirp}\ntp = {tp}[fs]")
+# plt.show()
 
 '''
+                                    Propagación en MPC
+'''
 
-# Terminos no lineales
-n2 = 1.6e-20                                                   # antes (e-16)indice no lineal de refraccion (cm2 / W) -> m2 / W
-Bk = 8e-64                                                    # antes (e-50)  cm7 / W4 -> m7 / W4 
-photons = 5
-N1 = 1j*(w0*n2) / c
-N2 = Bk / 2
+L = L*5
+EE, ZZ, drho, rhoZ = complex_crank_nicolson2d(campo_in,k1,dz,L,dr,disperssion = disperssion,k_disp=k1_2,dt=dt,N1=N1,N2=N2,photons=photons,Nonlinear=nonlinear)
 
 
-EE, ZZ, drho, rhoZ = complex_crank_nicolson2d(campo_in,k1,dz,z_end,dr,disperssion = True,k_disp=k1_2,dt=dt,N1=N1,N2=N2,photons=photons,Nonlinear=True)
-
-drho_2 = drho
-rhoZ_2 = rhoZ
+# drho_2 = drho
+# rhoZ_2 = rhoZ
 
 plt.figure(figsize=(9, 9),dpi=100)
-plt.imshow(np.real(EE), cmap = 'RdBu_r')#,vmin=-1, vmax=1)
+plt.imshow(np.abs(EE), cmap = cm.inferno,vmax = 4e7, vmin = -1e7)
 plt.colorbar()
 plt.xlabel("X")
 plt.ylabel("Y")
 plt.show()
 
-camposs = ZZ
+plt.figure()
+fig, axes = plt.subplots(2,1,gridspec_kw={'height_ratios':[2,2]},constrained_layout=True)
+# axes[0].set_title("Perfil de intensidad temporal del pulso")
+# axes[0].set_xlabel("Tiempo")
+# axes[0].set_ylabel("Intensidad")
+# axes[0].plot(t,np.real(It))
+
+# grafica del perfil de intensidad espacial del pulso
+axes[1].set_title("Perfil de intensidad espacial del pulso")
+axes[1].set_xlabel("Espacio")
+axes[1].set_ylabel("Intensidad")
+axes[1].plot(x,np.abs(EE[int(Nx/2),:]))
+plt.show()
 
 import time
 
 for i in range(len(ZZ)+2):
     
-    plt.figure(figsize=(9, 9),dpi=100)
-    plt.imshow(np.real(ZZ[i]), cmap = cm.inferno)#, vmin=-1, vmax=1)
-    plt.colorbar()
+    plt.figure()
+    plt.plot(x,np.abs(ZZ[i][int(Nx/2),:]))
     plt.xlabel("X")
     plt.ylabel("Y")
     plt.show()
     time.sleep(0.0001)
 
 
+camposs = ZZ
+
+# extent2 = np.min(x)*1e5, np.max(x)*1e5, np.min(y)*1e5, np.max(y)*1e5
+# for i in range(len(ZZ)+2):
+    
+#     plt.figure(figsize=(9, 9),dpi=100)
+#     plt.imshow(np.abs(ZZ[i]), cmap = cm.inferno,extent=extent2,vmax = 4e7, vmin = -1e7)
+#     plt.colorbar()
+#     plt.xlabel("X")
+#     plt.ylabel("Y")
+#     plt.show()
+#     time.sleep(0.0001)
+
+
 # sacar franja en fila central y graficarla respecto a z
-solucion = []
-for i in range(Nz):
+# solucion = []
+# for i in range(Nz):
 
-    solucion.append(ZZ[i][int(Nt/2),:])
+#     solucion.append(ZZ[i][int(Nt/2),:])
 
 
-plt.figure(figsize=(5, 1),dpi=500)
-plt.imshow(np.real(np.transpose(solucion[500:1200])), cmap = 'RdBu_r', vmin=0, vmax=1.5)#cm.inferno)
-plt.colorbar()
-plt.xlabel(" Espacio micras ")
-plt.ylabel(" Tiempo fs ")
-plt.show()
+# plt.figure(figsize=(5, 1),dpi=500)
+# plt.imshow(np.real(np.transpose(solucion[500:1200])), cmap = 'RdBu_r', vmin=0, vmax=1.5)#cm.inferno)
+# plt.colorbar()
+# plt.xlabel(" Espacio micras ")
+# plt.ylabel(" Tiempo fs ")
+# plt.show()
     
 
 
 # sacar franja en columna central y graficarla respecto a z
-solucion2 = []
-for i in range(Nz):
+# solucion2 = []
+# for i in range(Nz):
 
-    solucion2.append(ZZ[i][:,int(Nx/2)])
+#     solucion2.append(ZZ[i][:,int(Nx/2)])
 
 
 # plt.figure(figsize=(5, 1),dpi=500)
@@ -417,7 +480,7 @@ for i in range(Nz):
 # plt.ylabel(" Tiempo fs ")
 # plt.show()
  
-'''
+
 
 
 
