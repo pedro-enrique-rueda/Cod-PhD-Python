@@ -8,6 +8,7 @@ Created on Wed Feb  9 22:26:11 2022
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm # import colormap tools
+import time
 # from NumericalMethods import complex_crank_nicolson2d
 
 
@@ -51,12 +52,14 @@ def complex_crank_nicolson2d(f,k1,dz,z,dr,k2 = 0, k3 = 0,disperssion = False,k_d
     def nolinealidad(N1,N2,crossZ,contador,Nonlinear,photons,rhoZ,drho):
         
         if(Nonlinear and contador != 0):
-                           
+               
             A = 3/2
             B = 1/2
-            # eps0 = 8.854e-12                           #vacuum permitivity
-            # c = 299792458 
-            # E2I = 0.5*c*eps0
+            # calculo de intensidad de entrada
+            # E2I = 0.5*c*eps0 #constant to go from field amplitude to intensity
+            # It = E2I*np.abs(campo_in[:,int(Nx/2)])**2
+            # Ir = E2I*np.abs(campo_in[int(Nt/2),:])**2
+            # Eft = Ef[:,int(Nx/2)]
             It = np.abs(crossZ[contador])
             It_1 = np.abs(crossZ[contador-1])
             
@@ -68,10 +71,8 @@ def complex_crank_nicolson2d(f,k1,dz,z,dr,k2 = 0, k3 = 0,disperssion = False,k_d
             rho_c = 1.7e-27                             # critical plasma density ecuacion: eps0*me*((2*pi*c) / (c*lam0)**2)
             Ui = 12                                     # eV
             
-            
             drho[contador] = cross_sec_kphotons*(( (It**photons) + (It_1**photons))/2)*(rho_nt - rhoZ[contador-1]) + (gamma/Ui)*rhoZ[contador-1]*(It + It_1)/2
             rhoZ[contador] = rhoZ[contador-1] + drho[contador]
-            
             
             
             Nn = N1*(It**2)*crossZ[contador] - N2*(It**(2*photons-2))*crossZ[contador] + (-gamma/2)*rhoZ[contador]*crossZ[contador]
@@ -80,6 +81,7 @@ def complex_crank_nicolson2d(f,k1,dz,z,dr,k2 = 0, k3 = 0,disperssion = False,k_d
             N_total = A*Nn - B*Nn_1
 
             return N_total,drho,rhoZ
+
     
         else:
             
@@ -253,7 +255,7 @@ extra_pass = True           #True for adding an extra through the focus (half ro
 f1 = 0.5*300e-3             #300e-3    #focal distance mirror 1 (all distances in m)
 f2 = 0.5*300e-3             #300e-3   #focal distance mirror 2
 z_end = 0.999*2*(f1+f2)     #mirror separation en metros
-Nz = 100                   #pasos de propagacion Z
+Nz = 200                   #pasos de propagacion Z
 dz = z_end/Nz               #propagation step
 
 # Terminos no lineales
@@ -319,27 +321,53 @@ print(f"Tamaño de haz en foco = {wxo} [m]")
 #hasta este momento, obtendria el campo referente al laser 
 #al momento de tocar el primer espejo de la cavidad.
 
-disperssion = False
-nonlinear = False
-gaussiano_espacial = True
+dis = True
+nonl = True 
+gaussiano_espacial = False
 
-if disperssion and nonlinear:
+if dis == True and nonl == True:
+    
     R,T = np.meshgrid(r,t)
     campo_in = field_in_MPC(E0,R,w0,Rin,k0,Chirp,T,tp)        # campo entrante a la MPC
     
-if gaussiano_espacial:
+
+    EjeX = "Espacio [micrometros]"
+    EjeY = "Tiempo [Femtosegundos]"
+    Nx = Nx
+    Ny = Nt
+    x = x
+    y = t
+    
+    extent = np.real(np.min(x))*1e5, np.real(np.max(x))*1e5, np.real(np.min(T))*1e15, np.real(np.max(T))*1e15
+    plt.figure(figsize=(9, 9),dpi=100)
+    plt.imshow(np.real(np.abs(campo_in)), cmap = cm.inferno,extent=extent)
+    plt.colorbar()
+    plt.title("Pulso entrada en R vs T")
+    plt.xlabel(EjeX)
+    plt.ylabel(EjeY)
+    # plt.text(55, 160, f"w0 = {w0}[m]")#" \nlam = {lam0}[m] \nChirp = {Chirp}\ntp = {tp}[fs]")
+    plt.show()
+    
+elif gaussiano_espacial:
     X,Y = np.meshgrid(x,y)
     campo_in = E0*(wxo/w0)*np.exp(-np.power(np.sqrt(np.power(X,2) + np.power(Y,2))/w0,2))*np.exp(-1j*np.arctan(z1/Zr))*np.exp(-1j*(kbar*(np.power(X,2) + np.power(Y,2))/(2*Rin))) # haz gaussiano comun
 
+
+    EjeX = "Espacio [micrometros]"
+    EjeY = "Espacio [micrometros]"
+    Nx = Nx
+    Ny = Nx
+    x = x
+    y = y
     
-extent = np.min(x)*1e5, np.max(x)*1e5, np.min(x)*1e5, np.max(x)*1e5
-plt.figure(figsize=(9, 9),dpi=100, frameon=True)
-plt.imshow(np.abs(campo_in), cmap = cm.inferno,extent=extent)#,vmax = 4e7, vmin = -1e7) #  vmin=-1, vmax=1,
-plt.colorbar()
-plt.title("Pulso entrada en x vs x")
-plt.xlabel("Espacio [micrometros]")
-plt.ylabel("Espacio [micrometros]")
-plt.show()
+    extent = np.real(np.min(x))*1e5, np.real(np.max(x))*1e5, np.real(np.min(x))*1e5, np.real(np.max(x))*1e5
+    plt.figure(figsize=(9, 9),dpi=100, frameon=True)
+    plt.imshow(np.abs(campo_in), cmap = cm.inferno,extent=extent)
+    plt.colorbar()
+    plt.title("Pulso entrada en x vs x")
+    plt.xlabel(EjeX)
+    plt.ylabel(EjeY)
+    plt.show()
     
 # Ef = np.fft.ifftshift(np.fft.ifftn(np.fft.ifftshift(campo_in))) #to frequency domain
  
@@ -348,67 +376,53 @@ plt.show()
                                     Graficas
 '''
 
-
-# calculo de intensidad de entrada
-# E2I = 0.5*c*eps0 #constant to go from field amplitude to intensity
-# It = E2I*np.abs(campo_in[:,int(Nx/2)])**2
-# Ir = E2I*np.abs(campo_in[int(Nt/2),:])**2
-# Eft = Ef[:,int(Nx/2)]
-
-
 # grafica del perfil de intensidad temporal del pulso
 plt.figure()
 fig, axes = plt.subplots(2,1,gridspec_kw={'height_ratios':[2,2]},constrained_layout=True)
-# axes[0].set_title("Perfil de intensidad temporal del pulso")
-# axes[0].set_xlabel("Tiempo")
-# axes[0].set_ylabel("Intensidad")
-# axes[0].plot(t,np.real(It))
+axes[0].set_title("Perfil de intensidad temporal del pulso")
+axes[0].set_xlabel(EjeY)
+axes[0].set_ylabel("Intensidad")
+axes[0].plot(np.real(y),np.real(np.abs(campo_in[:,int(Nx/2)])))
 
-# grafica del perfil de intensidad espacial del pulso
+# # grafica del perfil de intensidad espacial del pulso
 axes[1].set_title("Perfil de intensidad espacial del pulso")
-axes[1].set_xlabel("Espacio")
+axes[1].set_xlabel(EjeX)
 axes[1].set_ylabel("Intensidad")
-axes[1].plot(x,np.abs(campo_in[int(Nx/2),:]))
+axes[1].plot(np.real(x),np.real(np.abs(campo_in[int(Ny/2),:])))
 plt.show()
 
-# grafica del perfil de intensidad espectral del pulso
-
-# plt.figure()
-# plt.plot(np.real(Ef))
-# plt.show()
-
-
-
-
-# grafica de imagen en 2D de perfil de intensidad espacial vs temporal
-# extent = np.min(x)*1e5, np.max(x)*1e5, np.min(t)*1e15, np.max(t)*1e15
-
-# plt.figure(figsize=(9, 9),dpi=100, frameon=False)
-# plt.imshow(np.real(campo_in), cmap = cm.inferno,extent=extent) #  vmin=-1, vmax=1,
-# plt.colorbar()
-# plt.title("Pulso entrada en r vs t")
-# plt.xlabel("Espacio [micrometros]")
-# plt.ylabel("Tiempo [femtosegundos]")
-# plt.text(55, 160, f"w0 = {w0}[m]")#" \nlam = {lam0}[m] \nChirp = {Chirp}\ntp = {tp}[fs]")
-# plt.show()
 
 '''
                                     Propagación en MPC
 '''
 
-L = L*5
-EE, ZZ, drho, rhoZ = complex_crank_nicolson2d(campo_in,k1,dz,L,dr,disperssion = disperssion,k_disp=k1_2,dt=dt,N1=N1,N2=N2,photons=photons,Nonlinear=nonlinear)
+L = L
+# EE, ZZ, drho, rhoZ = complex_crank_nicolson2d(campo_in,k1,dz,L,dr,disperssion = dis,k_disp=k1_2,dt=dt,N1=N1,N2=N2,photons=photons,Nonlinear=nonl)
+
+# plt.figure(figsize=(9, 9),dpi=100)
+# plt.imshow(np.abs(EE), cmap = cm.inferno,extent=extent,vmax = 4e7, vmin = -1e7)
+# plt.colorbar()
+# plt.xlabel(EjeX)
+# plt.ylabel(EjeY)
+# plt.show()
+
+# for i in range(len(ZZ)+2):
+    
+#     plt.figure()
+#     plt.plot(np.real(x),np.real(np.abs(ZZ[i][int(Nx/2),:])))
+#     plt.xlabel(EjeX)
+#     plt.ylabel("Intensidad")
+#     plt.show()
+#     time.sleep(0.0001)
+
+'''
 
 
 # drho_2 = drho
 # rhoZ_2 = rhoZ
 
-plt.figure(figsize=(9, 9),dpi=100)
-plt.imshow(np.abs(EE), cmap = cm.inferno,vmax = 4e7, vmin = -1e7)
-plt.colorbar()
-plt.xlabel("X")
-plt.ylabel("Y")
-plt.show()
+
+
 
 plt.figure()
 fig, axes = plt.subplots(2,1,gridspec_kw={'height_ratios':[2,2]},constrained_layout=True)
@@ -424,20 +438,11 @@ axes[1].set_ylabel("Intensidad")
 axes[1].plot(x,np.abs(EE[int(Nx/2),:]))
 plt.show()
 
-import time
 
-for i in range(len(ZZ)+2):
-    
-    plt.figure()
-    plt.plot(x,np.abs(ZZ[i][int(Nx/2),:]))
-    plt.xlabel("X")
-    plt.ylabel("Y")
-    plt.show()
-    time.sleep(0.0001)
 
 
 camposs = ZZ
-
+'''
 # extent2 = np.min(x)*1e5, np.max(x)*1e5, np.min(y)*1e5, np.max(y)*1e5
 # for i in range(len(ZZ)+2):
     
