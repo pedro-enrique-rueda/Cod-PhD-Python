@@ -9,22 +9,23 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm # import colormap tools
 import time
+
 # from NumericalMethods import complex_crank_nicolson2d
 
 
-def campo1(x,y,w0):
+def campo1(x,y,w):
     # ecuacion gaussiana comun y corriente, se usó como prueba. 
-    return np.exp(-(np.power(r/w0,2)))
+    return np.exp(-(np.power(r/w,2)))
 
                   
 # for pulse splitting
-def field158(A,r,w0,f,k0,Chirp,t,tp):
+def field158(A,r,w,f,k0,Chirp,t,tp):
     
-    return A * np.exp(-(np.power(r/w0,2)) - 1j*k0*(np.power(r,2))/(2*f) - (1+1j*Chirp)*np.power(t/tp,2))     # initial pulse
+    return A * np.exp(-(np.power(r/w,2)) - 1j*k0*(np.power(r,2))/(2*f) - (1+1j*Chirp)*np.power(t/tp,2))     # initial pulse
     
 
-def field_in_MPC(E0,r,w0,Rin,k0,Chirp,T,tp):
-    return E0 * np.exp(-(np.power(r/w0,2))) * np.exp(-1j *k0*np.power(r,2)/(2*Rin)) * np.exp(-(1+1j*Chirp)*(T**2/tp**2)) * np.exp(-1j*w0*T)  #defition of field in the time domain
+def field_in_MPC(E0,r,w,Rin,k0,Chirp,T,tp):
+    return E0 * np.exp(-(np.power(r/w,2))) * np.exp(-1j *k0*np.power(r,2)/(2*Rin)) * np.exp(-(1+1j*Chirp)*(T**2/tp**2)) * np.exp(-1j*w*T)  #defition of field in the time domain
 
 
 
@@ -198,42 +199,68 @@ def complex_crank_nicolson2d(f,k1,dz,z,dr,k2 = 0, k3 = 0,disperssion = False,k_d
 
 
 
+'''
+                                    Apartado para obtener algunos datos a preferencia
+'''
 
+def consultaParametros(diametroEntrada, foco, longitudOnda):
+        
+    
+    dd = (fffoco*longOnda)/dd0          # tamaño de haz de entrada 
+    print(f"\n\nDiametro de entrada = {dd} metros")
+    
+    # Angulo de difracción
+    deltaTheta = longOnda / dd
+    print(f"Angulo de difracción = {deltaTheta} radianes")
+    
+    # Distancia Rayleigh
+    ZZr = np.pi*(dd0**2) / longOnda
+    print(f"Distancia Rayleigh = {ZZr} metros\n")
 
+    return dd, ZZr
 
+# Tamaño de haz de entrada teniendo el tamaño en el foco
+# para ejecutar en spyder5, seleccione solo estas lineas de codigo
+# y presione F9 
+# Mientras no lo use, puede comentar esta partecita
+
+dd0 = 100e-6         # micrometros diametro en el foco
+fffoco = 0.5*0.30    # metros
+longOnda = 800e-9    # metros
+
+dd, ZZr = consultaParametros(dd0, fffoco, longOnda)
 
 '''
                                     Parametros del haz de entrada 
+
+            Puede si bien, usar w = dd si conoce tan solo el diametro en el foco y halla el diametro
+            en la entrada o puede también comentar esta linea y setear la entrada del haz directamente
+            en la variable "w" que de igual forma más adelante se calcula el tamaño en el foco con el 
+            nombre de variable dd0.
 '''
 
-# w0 = 100e-6                     # tamaño del spot espacial del haz en el foco
-w0 = 1.553896e-3                       # tamaño del haz de entrada, a la salida del telescopio ya colimado
+
+w = dd                                 # tamaño del haz de entrada calculado, a la salida del telescopio ya colimado
+# w = 1.553896e-3                      # tamaño del haz de entrada conocido, a la salida del telescopio ya colimado
 lam0 = 800e-9
-eps0 = 8.854e-12                #vacuum permitivity
-c = 299792458 #m/s
-n = 1                       # indice de refracción lineal
-kbar = 2*np.pi * n / lam0 
-k1 = 1j /(2* kbar)
-k0 = 2*np.pi / lam0
-Chirp = -0
+eps0 = 8.854e-12                        #vacuum permitivity
+c = 299792458                           # Velocidad de la luz m/s
+n = 1.328                               # indice de refracción lineal
+foco = 0.3                              # foco en metros
+k0 = (2*np.pi * n) / lam0                     # Numero de Onda
+Chirp = -1
 FWHM = 50e-15           
 frecuencia_laser = 1000 #Hz
 Energy = 0.29e-3                        #pulse energy at first cavity mirror in Joules
 Pot_laser = Energy*frecuencia_laser     # potencia media laser
 tp = FWHM/(np.sqrt(2 * np.log(2)))      #pulse width assuming Gaussian shape
 Pp = 0.94 * (Energy / tp)               # potencia pico del pulso asumiendo forma gaussiana.
-k0_ord2 = 241e-28                           # s2/m
-k1_2 = - 1j*k0_ord2 / 2
 
-#Rayleigh del haz colimado entrando en la MPC
-Zr0 = (w0**2) / lam0 # en metros 
-
-I0 = 2*Energy/(np.pi*w0**2)/(np.sqrt(np.pi/2)*tp)   #intensity at input mirror
+I0 = 2*Energy/(np.pi*w**2)/(np.sqrt(np.pi/2)*tp)   #intensity at input mirror
 E0 = np.sqrt(2*I0/(c*eps0))                         #field amplitude at input mirror
 
-
 # eje espacial trasversal
-xa = w0*3                # metros
+xa = w*3                # metros
 Nx = 100
 dx = (xa - (-xa)) / Nx
 x = np.linspace(-xa/2, xa/2,Nx,dtype=complex)
@@ -242,31 +269,58 @@ r = np.sqrt(np.power(x,2) + np.power(y,2))
 dr = dx
 
 # eje temporal
-ta = 400e-15    # segundos
-Nt = 2**8
+ta = 400e-15    # Ventana temporal en segundos
+Nt = 2**8       # puntos de muestra en el eje temporal
 dt = (ta - (-ta)) / Nt
 t = np.linspace(-ta/2, ta/2,Nt,dtype=complex)    # segundos
 
-
 # eje de propagacion
-ref = 0.97                  #mirror reflectivity (value between 0.0 and 1.0 - assumed flat in freq. for silver ~0.96-0.97
-round_trips = 0             #number of round trips in the cavity
-extra_pass = True           #True for adding an extra through the focus (half round trip)
-f1 = 0.5*300e-3             #300e-3    #focal distance mirror 1 (all distances in m)
-f2 = 0.5*300e-3             #300e-3   #focal distance mirror 2
-z_end = 0.999*2*(f1+f2)     #mirror separation en metros
-Nz = 200                   #pasos de propagacion Z
+
+z_end = 3e-2
+Nz = 1500                    #pasos de propagacion Z
 dz = z_end/Nz               #propagation step
 
+
+
+#Rayleigh del haz colimado entrando en la MPC
+zz1 = foco                              # distancia desde la lente al foco
+dd0 = (foco*lam0)/w                     # tamaño del haz en el foco
+Zr0 = np.pi * (dd0**2) / lam0           # en metros 
+Rin0 = zz1*(1+(Zr0/zz1)**2)             #Radio de curvatura de mi haz gaussiano entrante
+
+# condición para que Zr0 funcione, el diametro del haz en el foco debe complir con la siguiente condicion
+# es decir no puede ser demasiado pequeño
+
+print(f"Tamaño del haz en el foco teniendo en cuenta solo la distancia focal luego de colimación = {dd0} metros")
+print(f"El foco no es demasiado pequeño, verdad? = {100e-6 >= ((2*lam0) / np.pi)}")
+print(f"Radio de curvatura de mi haz entrante = {Rin0} radianes")
+print(f"Cauntas veces se reduce el tamaño del haz en el foco respecto a la entrada? = {np.round(w/dd0)} veces")
+
+# Terminos lineales
+k0_ord2 = 241e-28                       # s2/m
+k1_2 = - 1j*k0_ord2 / 2 
+k1 = 1j /(2* k0)
+
+
+
+
+
 # Terminos no lineales
-n2 = 1.6e-20                                                   # antes (e-16)indice no lineal de refraccion (cm2 / W) -> m2 / W
-Bk = 8e-64                                                    # antes (e-50)  cm7 / W4 -> m7 / W4 
+n2 = 1.6e-20                # antes (e-16)indice no lineal de refraccion (cm2 / W) -> m2 / W
+Bk = 8e-64                  # antes (e-50)  cm7 / W4 -> m7 / W4 
 photons = 5
-N1 = 1j*(w0*n2) / c
+N1 = 1j*(dd0*n2) / c
 N2 = Bk / 2
 
+# Pin = np.pi*(dd0**2)*I
+Pcr = (3.77*np.pi*n) / (2*n2*k0**2)     #Potencia critica para self-focusing en haz gaussiano
+# Zc = 0.367*Zr0 / (np.sqrt(np.pow(np.sqrt(Pin/Pcr) - 0.852,2) - 0.0219))
+print(f"Potencia critica para self-focusing = {Pcr}")
+
 print("\n\n\n######## Datos de mi pulso de entrada ########")
-print(f"\nEl haz conservará su diametro trasversal hasta \nRayleigh del haz de entrada = {Zr0} metros")
+print(f"\nEl haz conservará su diametro trasversal hasta \nRayleigh del haz de entrada = {(w**2) / lam0} metros")
+print(f"Longitud de onda = {lam0} metros")
+print(f"n0 = {n}")
 print(f"\nEnergia del pulso = {Energy} Joules")
 print(f"Potencia media del laser = {Pot_laser} W")
 print(f"FWHM = {FWHM} fs")
@@ -276,46 +330,51 @@ print(f"Intensidad del haz de entrada = {I0} W/m2")
 print(f"Amplitud del haz de entrada = {E0}")
 print(f"Ventana temporal = {ta} segundos")
 print(f"Ventana espacial = {xa} metros")
-print(f"Tamaño trasversal del haz de entrada = {w0} [m]")
+print(f"Tamaño trasversal del haz de entrada = {w} [m]")
 print(f"Distancia de propagacion por round trip = {z_end} metros")
 print(f"dz = {dz}")
-print(f"foco1 = {f1} metros \nfoco2 = {f2} metros")
-print(f"Numero de round trips = {round_trips}")
-print(f"Distancia de propagacion total = {(round_trips+1)*z_end}")
+print(f"Distancia de propagacion total = {z_end}")
 print(f"Pasos en R = {Nx}; Pasos en T = {Nt}; Pasos en Z = {Nz}")
 print(f"Chirp = {Chirp}")
-
-
 '''
                         Confocal Cavity characteristics, mode definitions
 '''
+# ref = 0.97                  #mirror reflectivity (value between 0.0 and 1.0 - assumed flat in freq. for silver ~0.96-0.97
+# round_trips = 0             #number of round trips in the cavity
+# extra_pass = True           #True for adding an extra through the focus (half round trip)
+# f1 = 0.5*300e-3             #300e-3    #focal distance mirror 1 (all distances in m)
+# f2 = 0.5*300e-3             #300e-3   #focal distance mirror 2
+# z_end = 0.999*2*(f1+f2)     #mirror separation en metros
 L = z_end                   # longitud de cavidad, espejo a espejo en metros
-g1 = 1-L/(2*f1)             #following definitions according to Siegman's book
-g2 = 1-L/(2*f2)
+# g1 = 1-L/(2*f1)             #following definitions according to Siegman's book
+# g2 = 1-L/(2*f2)
 
-if g1 == g2:                # Confocal symmetric case
-    wxo = np.sqrt((L*lam0/np.pi)*np.sqrt((1+g1)/(4*(1-g1))))  #cavity waist
-    z0 = L/2                                                  #position of waist
+# if g1 == g2:                # Confocal symmetric case
+#     wo = np.sqrt((L*lam0/np.pi)*np.sqrt((1+g1)/(4*(1-g1))))  #cavity waist
+#     z0 = L/2                                                  #position of waist
 
-else:
-    wxo = np.sqrt(lam0*L/np.pi*np.sqrt(g1*g2*(1-g1*g2)/(g1+g2-2*g1*g2)**2))     #cavity waist
-    z0 = g2*(1-g1)/(g1+g2-2*g1*g2)*L                                            #position of waist
+# else:
+#     wo = np.sqrt(lam0*L/np.pi*np.sqrt(g1*g2*(1-g1*g2)/(g1+g2-2*g1*g2)**2))     #cavity waist
+#     z0 = g2*(1-g1)/(g1+g2-2*g1*g2)*L                                            #position of waist
 
-Zr = np.pi*wxo**2/lam0             #Rayleigh length en el modo de la cavidad
-z1 = z0                            #distancia desde el foco al espejo 1.
+# Zr = (np.pi*(wo**2))/lam0         #Rayleigh length en el modo de la cavidad
+# z1 = z0                           #distancia desde el foco al espejo 1.
 
-win =  wxo*np.sqrt(1+(z1/Zr)**2)    #beam size at 1st mirror
-Rin = z1*(1+(Zr/z1)**2)              #radius of curvature at 1st mirror
+# win =  wo*np.sqrt(1+(z1/Zr)**2)   #beam size at 1st mirror
+# Rin = z1*(1+(Zr/z1)**2)           #radius of curvature at 1st mirror
 
-print("\n\n\n######## Confocal MPC Caracteristics ########")
-print("\nLa siguiente información son las caracteristicas de la MPC, setee \nsu haz de entrada TEM00 con diametro de entrada especificado")
-print(f"\nSetee el diametro del haz de entrada en = {win} [m]")
-print(f"\n0 <= g1g2 <= 1 : Estabilidad {0 <= g1*g2 <= 1}") # condicion de estabilidad de la cavidad
-print(f"Rayleight de la cavidad = {Zr} [m]")
-print(f"Distancia desde foco al espejo 1 = {z1} [m]")
-print(f"Radio de curvatura del haz en espejo 1 = {Rin}")
-print(f"Tamaño de haz en foco = {wxo} [m]")
 
+# print("\n\n\n######## Confocal MPC Caracteristics ########")
+# print("\nLa siguiente información son las caracteristicas de la MPC, setee \nsu haz de entrada TEM00 con diametro de entrada especificado")
+# print(f"\nSetee el diametro del haz de entrada en = {win} [m]")
+# print(f"\n0 <= g1g2 <= 1 : Estabilidad {0 <= g1*g2 <= 1}") # condicion de estabilidad de la cavidad
+# print(f"Rayleight de la cavidad = {Zr} [m]")
+# print(f"Distancia desde foco al espejo 1 = {z1} [m]")
+# print(f"Radio de curvatura del haz en espejo 1 = {Rin}")
+# print(f"Tamaño de haz en foco = {wo} [m]")
+# print(f"foco1 = {f1} metros \nfoco2 = {f2} metros")
+# print(f"Numero de round trips = {round_trips}")
+# print(f"Distancia de propagacion total = {(round_trips+1)*z_end}")
 
 
 #hasta este momento, obtendria el campo referente al laser 
@@ -328,7 +387,8 @@ gaussiano_espacial = False
 if dis == True and nonl == True:
     
     R,T = np.meshgrid(r,t)
-    campo_in = field_in_MPC(E0,R,w0,Rin,k0,Chirp,T,tp)        # campo entrante a la MPC
+    # campo_in = field_in_MPC(E0,R,w,Rin0,k0,Chirp,T,tp)        # campo entrante a la MPC
+    campo_in = field158(E0,R,w,foco,k0,Chirp,T,tp)
     
 
     EjeX = "Espacio [micrometros]"
@@ -350,7 +410,7 @@ if dis == True and nonl == True:
     
 elif gaussiano_espacial:
     X,Y = np.meshgrid(x,y)
-    campo_in = E0*(wxo/w0)*np.exp(-np.power(np.sqrt(np.power(X,2) + np.power(Y,2))/w0,2))*np.exp(-1j*np.arctan(z1/Zr))*np.exp(-1j*(kbar*(np.power(X,2) + np.power(Y,2))/(2*Rin))) # haz gaussiano comun
+    campo_in = E0*(dd0/w)*np.exp(-np.power(np.sqrt(np.power(X,2) + np.power(Y,2))/w,2))*np.exp(-1j*np.arctan(zz1/Zr0))*np.exp(-1j*(k0*(np.power(X,2) + np.power(Y,2))/(2*Rin0))) # haz gaussiano comun
 
 
     EjeX = "Espacio [micrometros]"
@@ -396,7 +456,7 @@ plt.show()
                                     Propagación en MPC
 '''
 
-L = L
+# L = L
 # EE, ZZ, drho, rhoZ = complex_crank_nicolson2d(campo_in,k1,dz,L,dr,disperssion = dis,k_disp=k1_2,dt=dt,N1=N1,N2=N2,photons=photons,Nonlinear=nonl)
 
 # plt.figure(figsize=(9, 9),dpi=100)
@@ -406,6 +466,25 @@ L = L
 # plt.ylabel(EjeY)
 # plt.show()
 
+# sacar franja en columna central y graficarla respecto a z
+# solucion2 = []
+# for i in range(int(Nz)):
+
+#     solucion2.append(ZZ[i][:,int(Nx/2)])
+
+
+# plt.figure(figsize=(5, 1),dpi=500)
+# plt.imshow(np.abs(np.transpose(solucion2[:])), cmap = cm.inferno,vmax = 4e7, vmin = -1e7)
+# plt.colorbar()
+# plt.xlabel(" Espacio micras ")
+# plt.ylabel(" Tiempo fs ")
+# plt.show()
+
+
+
+
+
+
 # for i in range(len(ZZ)+2):
     
 #     plt.figure()
@@ -414,6 +493,17 @@ L = L
 #     plt.ylabel("Intensidad")
 #     plt.show()
 #     time.sleep(0.0001)
+
+
+# for i in range(len(ZZ)+2):
+    
+#     plt.figure()
+#     plt.plot(np.real(t),np.real(np.abs(ZZ[i*5][:,int(Nx/2)])))
+#     plt.xlabel(EjeY)
+#     plt.ylabel("Intensidad")
+#     plt.show()
+#     time.sleep(0.0001)
+
 
 '''
 
@@ -471,19 +561,7 @@ camposs = ZZ
     
 
 
-# sacar franja en columna central y graficarla respecto a z
-# solucion2 = []
-# for i in range(Nz):
 
-#     solucion2.append(ZZ[i][:,int(Nx/2)])
-
-
-# plt.figure(figsize=(5, 1),dpi=500)
-# plt.imshow(np.real(np.transpose(solucion2[500:])), cmap = reds) #cm.inferno)#, vmin=-1, vmax=1)
-# plt.colorbar()
-# plt.xlabel(" Espacio micras ")
-# plt.ylabel(" Tiempo fs ")
-# plt.show()
  
 
 
