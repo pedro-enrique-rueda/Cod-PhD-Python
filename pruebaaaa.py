@@ -1,3 +1,4 @@
+
 # -*- coding: utf-8 -*-
 """
 Created on Sat Mar 26 11:23:13 2022
@@ -61,33 +62,33 @@ def complex_crank_nicolson2d(f,k1,dz,zin,z,Nz,dr,k2 = 0, k3 = 0,disperssion = Fa
             eps0 = 8.854e-12                        #vacuum permitivity
             c = 299792458                           # Velocidad de la luz m/s
             n = 1.328                               # indice de refracción lineal del agua
-            It = 0.5*eps0*c*n*np.absolute(crossZ[contador])
-            It_1 = 0.5*eps0*c*n*np.absolute(crossZ[contador-1])
+            It = 0.5*eps0*c*n*np.absolute(crossZ[contador])**2
+            It_1 = 0.5*eps0*c*n*np.absolute(crossZ[contador-1])**2
             
             # densidad de electrones
-            # rho_nt = 0.54e25                            # 1/m3
-            # cross_sec_kphotons = 2.81e-128              # m16 / (W8 * s)  esto para 8 photones ejemplo con oxigeno
-            # Tc = 350e-15                                # segundos
-            # gamma = 5.6e-24                             # m2  la ecu es : (k0*w0*Tc)/(n0*rho_c*(1 + (w0**2)*(Tc**2))
-            # rho_c = 1.7e-27                             # critical plasma density ecuacion: eps0*me*((2*pi*c) / (c*lam0)**2)
-            # Ui = 12                                     # eV
+            rho_nt = 0.54e25                            # 1/m3
+            cross_sec_kphotons = 2.81e-128              # m16 / (W8 * s)  esto para 8 photones ejemplo con oxigeno
+            Tc = 350e-15                                # segundos
+            gamma = 5.6e-24                             # m2  la ecu es : (k0*w0*Tc)/(n0*rho_c*(1 + (w0**2)*(Tc**2))
+            rho_c = 1.7e-27                             # critical plasma density ecuacion: eps0*me*((2*pi*c) / (c*lam0)**2)
+            Ui = 12                                     # eV
             
-            # drho[contador] = cross_sec_kphotons*(( (It**photons) + (It_1**photons))/2)*(rho_nt - rhoZ[contador-1]) + (gamma/Ui)*rhoZ[contador-1]*(It + It_1)/2
-            # rhoZ[contador] = rhoZ[contador-1] + drho[contador]
+            drho[contador] = cross_sec_kphotons*(( (It**photons) + (It_1**photons))/2)*(rho_nt - rhoZ[contador-1]) + (gamma/Ui)*rhoZ[contador-1]*(It + It_1)/2
+            rhoZ[contador] = rhoZ[contador-1] + drho[contador]
             
             
-            Nn = N1*(np.power(It,2))*crossZ[contador] - N2*(np.power(It,(2*photons-2)))*crossZ[contador] #+ (-gamma/2)*rhoZ[contador]*crossZ[contador]
-            Nn_1 = N1*(np.power(It_1,2))*crossZ[contador-1] - N2*(np.power(It_1,(2*photons-2)))*crossZ[contador-1] #+ (-gamma/2)*rhoZ[contador-1]*crossZ[contador-1]
+            Nn = N1*It*crossZ[contador] - N2*(np.power(It,(photons-1)))*crossZ[contador] + (-gamma/2)*rhoZ[contador]*crossZ[contador]
+            Nn_1 = N1*It_1*crossZ[contador-1] - N2*(np.power(It_1,(photons-1)))*crossZ[contador-1] + (-gamma/2)*rhoZ[contador-1]*crossZ[contador-1]
 
             N_total = A*Nn - B*Nn_1
 
-            return N_total,drho,rhoZ
+            return N_total,drho,rhoZ, N1,N2
 
     
         else:
             
             re = np.zeros((Nt+2,Nr+2),dtype=complex)
-            return re,drho,rhoZ                     
+            return re,drho,rhoZ, N1,N2                     
         
     
     Nt = f.shape[0]-2
@@ -135,10 +136,9 @@ def complex_crank_nicolson2d(f,k1,dz,zin,z,Nz,dr,k2 = 0, k3 = 0,disperssion = Fa
         # Creacion de Matriz b
         b = np.zeros([Nt,1],dtype=complex)
         
-        xx1,drho,rhoZ = nolinealidad(N1,N2,crossZ,contador,Nonlinear,photons,rhoZ,drho)
+        xx1,drho,rhoZ,N1,N2 = nolinealidad(N1,N2,crossZ,contador,Nonlinear,photons,rhoZ,drho)
         
         nolin = dt*dz*xx1
-        
         
         # First Half of the method
         for j in range(1,Nr+1): # columns
@@ -146,24 +146,28 @@ def complex_crank_nicolson2d(f,k1,dz,zin,z,Nz,dr,k2 = 0, k3 = 0,disperssion = Fa
             for i in range(1,Nt+1): # rows
 
                 if(k==0):
-                    b[0] = 2*(1 + omega*(-lam + k2 + k3))*f[i,j] + omega*(lam*f[i,j+1] + lam*f[i,j-1] + lam2*f[i-1,j]) + nolin[i,j]
+                    b[0] = 2*(1 + omega*(-lam + k2 + k3))*f[i,j] + omega*(lam*f[i,j+1] + lam*f[i,j-1] + lam2*f[i-1,j]) 
                     k = k + 1
                     continue
 
                 if(k==Nt-1):
-                    b[Nr-1] = 2*(1 + omega*(-lam + k2 + k3))*f[i,j] + omega*(lam2*f[i+1,j] + lam*f[i,j-1] + lam*f[i,j+1]) + nolin[i,j]
+                    b[Nr-1] = 2*(1 + omega*(-lam + k2 + k3))*f[i,j] + omega*(lam2*f[i+1,j] + lam*f[i,j-1] + lam*f[i,j+1]) 
                     k = k + 1
                     continue
                 else:
-                    b[k] = 2*(1 + omega*(-lam + k2 + k3))*f[i,j] + omega*(lam*f[i,j+1] + lam*f[i,j-1]) + nolin[i,j]
+                    b[k] = 2*(1 + omega*(-lam + k2 + k3))*f[i,j] + omega*(lam*f[i,j+1] + lam*f[i,j-1]) 
                     k = k + 1
                     continue
-                    
+            
+            
             res = np.dot(L_Invert1,b)
             
             for i in range(1,Nt+1):
                 f[i,j] = np.around(res[i-1],4)
-          
+                
+        f[1:Nt+1,:] = f[1:Nt+1,:] + np.dot(L_Invert1,nolin[1:Nt+1,:])
+ 
+        
         b1 = np.zeros([Nr,1],dtype=complex)        
         
         # Second Half of the method
@@ -189,13 +193,15 @@ def complex_crank_nicolson2d(f,k1,dz,zin,z,Nz,dr,k2 = 0, k3 = 0,disperssion = Fa
                
             for j in range(1,Nr+1):
                 f[i,j] = res1[j-1]
+                
+        
         
         zin = zin + dz
         print(f"lugar en Z = {zin}")
         contador = contador + 1
         print(f"z = {contador} de {iteraciones}")
         
-    return f, crossZ,drho,rhoZ
+    return f, crossZ,drho,rhoZ,N1,N2,nolin
 
 
 
@@ -221,7 +227,7 @@ Chirp = -10
 FWHM = 50e-15                           # fs           
 tp = FWHM/(np.sqrt(2 * np.log(2)))      # pulse width assuming Gaussian shape
 frecuencia_laser = 1000                 # Hz
-Energy = 0.0029e-3                          # pulse energy at first cavity mirror in Joules
+Energy = 290e-3                          # pulse energy at first cavity mirror in Joules
 Pp = 0.94 * (Energy / tp)               # potencia pico del pulso asumiendo forma gaussiana.
 Pot_laser = Energy*frecuencia_laser     # potencia media laser Joules*Hz Tambien puede expresarse np.pi*(w0**2)*I0/2
 
@@ -258,8 +264,8 @@ N2 = Bk / 2
 
 # eje de propagacion
 zin = 0e-2
-z_end = 6e-2                # metros
-Nz = 2000                   #pasos de propagacion Z
+z_end = 3e-2                # metros
+Nz = 1000                   #pasos de propagacion Z
 ejeZ = np.linspace(zin,z_end,Nz)
 dz = np.abs(ejeZ[0] - ejeZ[1])               #propagation step
 
@@ -301,7 +307,7 @@ if dis:
     
     Pin = np.pi*(w0**2)*I0/2  
     Zc = 0.367*Zr0 / np.sqrt(np.power((np.sqrt(Pin/Pcr) - 0.852),2) - 0.0219)
-  
+    print(Zc*1e2)
     print(f"\nPotencia critica para self-focusing: Pcr = {Pcr:.1E} W")
     print(f"Potencia a la entrada del foco: Pin = {Pin:.1E} W")
     print(f"Distancia focal no lineal Zc = {Zc*1e2} cm ¿desde el foco?")
@@ -348,7 +354,23 @@ if dis:
     
     
       
-    EE, ZZ, drho, rhoZ = complex_crank_nicolson2d(campo_in,k1,dz,zin,z_end,Nz,dr,disperssion=True,k_disp=k1_2,dt=dt,N1=N1,N2=N2,photons=photons,Nonlinear=bool(nonl))
+    EE, ZZ, drho, rhoZ,N1,N2,nolin = complex_crank_nicolson2d(campo_in,k1,dz,zin,z_end,Nz,dr,disperssion=True,k_disp=k1_2,dt=dt,N1=N1,N2=N2,photons=photons,Nonlinear=bool(nonl))
+    
+    nolineal = nolin
+    
+    plt.figure()
+    plt.plot(nolineal[:,int(Nx/2)])
+    plt.show()
+    
+    extent22 = np.real(np.min(x))*1e6, np.real(np.max(x))*1e6, np.real(np.min(T))*1e15, np.real(np.max(T))*1e15
+    plt.figure(figsize=(9, 9),dpi=100)
+    plt.imshow(np.abs(nolineal), cmap = cm.inferno,extent=extent22,vmax = np.abs(np.real(np.amax(nolineal))) , vmin = np.abs(np.real(np.amin(nolineal))))
+    plt.colorbar()
+    plt.xlabel("Eje X")
+    plt.ylabel("Eje T")
+    plt.show()
+
+
     
     extent2 = np.real(np.min(x))*1e6, np.real(np.max(x))*1e6, np.real(np.min(T))*1e15, np.real(np.max(T))*1e15
     plt.figure(figsize=(9, 9),dpi=100)
@@ -387,17 +409,17 @@ if dis:
     plt.ylabel(" Tiempo fs ")
     plt.show()
 
-    extent4 =  np.real(np.min(x))*1e6, np.real(np.max(x))*1e6, np.real(np.min(T))*1e15, np.real(np.max(T))*1e15
-    for i in range(len(ZZ)+2):
+    # extent4 =  np.real(np.min(x))*1e6, np.real(np.max(x))*1e6, np.real(np.min(T))*1e15, np.real(np.max(T))*1e15
+    # for i in range(len(ZZ)+2):
         
-        plt.figure(figsize=(9, 9),dpi=100)
-        plt.imshow(np.abs(ZZ[i]), cmap = cm.inferno, extent = extent4,vmax = 2e8, vmin = 0)
-        plt.colorbar()
-        plt.title(f"{i}")
-        plt.xlabel("X")
-        plt.ylabel("Y")
-        plt.show()
-        time.sleep(0.0001)
+    #     plt.figure(figsize=(9, 9),dpi=100)
+    #     plt.imshow(np.abs(ZZ[i]), cmap = cm.inferno, extent = extent4,vmax = 2e8, vmin = 0)
+    #     plt.colorbar()
+    #     plt.title(f"{i}")
+    #     plt.xlabel("X")
+    #     plt.ylabel("Y")
+    #     plt.show()
+    #     time.sleep(0.0001)
         
 elif gaussiano_espacial:
     # definimos nuestro haz gaussiano Espacial, con w0 en el origen de coordenadas
@@ -488,12 +510,3 @@ elif gaussiano_espacial:
         plt.ylabel("Y")
         plt.show()
         time.sleep(0.0001)
-
-
-
-
-
-
-
-
-
